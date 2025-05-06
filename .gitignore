@@ -1,5 +1,7 @@
 # 忽略预训练模型文件夹
 .gradio/
+asset/
+outputs/
 pretrained_models/
 
 # 常见的 Python 忽略项
