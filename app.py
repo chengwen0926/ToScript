@@ -6,12 +6,11 @@ import numpy as np
 import random
 # import torch
 # import torchaudio
-# import librosa
 from pathlib import Path
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-inference_mode_list = ['🎙️音频推理', '📷图像推理', '📽️视频推理']
+inference_mode_list = ['音频推理', '图像推理', '视频推理']
 instruct_dict = {
     inference_mode_list[0]: '1. 选择\'{}\'并上传源音频\n2. 点击生成脚本按钮'.format(inference_mode_list[0]),
     inference_mode_list[1]: '1. 选择\'{}\'并上传源图像\n2. 点击生成脚本按钮'.format(inference_mode_list[1]),
