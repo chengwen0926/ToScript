@@ -11,23 +11,29 @@ from pathlib import Path
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-inference_mode_list = ['视频推理', '音频推理']
+inference_mode_list = ['音频推理', '图像推理', '视频推理']
 instruct_dict = {
-    '视频推理': '1. 选择视频推理并上传源视频\n2. 点击生成脚本按钮',
-    '音频推理': '1. 选择音频推理并上传源音频\n2. 点击生成脚本按钮'
+    '音频推理': '1. 选择\'音频推理\'并上传源音频\n2. 点击生成脚本按钮',
+    '图像推理': '1. 选择\'图像推理\'并上传源图像\n2. 点击生成脚本按钮',
+    '视频推理': '1. 选择\'视频推理\'并上传源视频\n2. 点击生成脚本按钮'
 }
-stream_mode_list = [('否', False), ('是', True)]
+stream_mode_list = [('是', True), ('否', False)]
 
-def change_instruction(mode_checkbox_group):    
-    vid_visible = {
+def change_mode(mode_checkbox_group):
+    wav_visible = {
         "__type__": "update",
         "visible": mode_checkbox_group==inference_mode_list[0]
     }
-    wav_visible = {
+    img_visible = {
         "__type__": "update",
         "visible": mode_checkbox_group==inference_mode_list[1]
     }
-    return instruct_dict[mode_checkbox_group] , vid_visible, wav_visible
+    vid_visible = {
+        "__type__": "update",
+        "visible": mode_checkbox_group==inference_mode_list[2]
+    }
+
+    return instruct_dict[mode_checkbox_group] , wav_visible, img_visible, vid_visible
 
 def generate_script():
     import time
@@ -42,23 +48,28 @@ def output_directly(para):
     return para
 
 def main():
-    with gr.Blocks() as demo:
+    theme = gr.themes.Soft()
+    block = gr.Blocks(theme=theme).queue()
+    with block as demo:
         gr.Markdown("### 代码库 [ToScript](https://github.com/FunAudioLLM/CosyVoice) \
                     预训练模型 [Whisper-Large-v3-Turbo](https://huggingface.co/openai/whisper-large-v3-turbo)")
         gr.Markdown("#### 请选择推理模式，并按照提示步骤进行操作")
 
         with gr.Row():
             mode_checkbox_group = gr.Radio(choices=inference_mode_list, label='选择推理模式', value=inference_mode_list[0])
-            stream = gr.Radio(choices=stream_mode_list, label='是否流式推理', value=stream_mode_list[0][1])
+            stream = gr.Radio(choices=stream_mode_list, label='是否流式推理', value=stream_mode_list[0][0])
             instruction_text = gr.Text(label="操作步骤", value=instruct_dict[inference_mode_list[0]])
-        with gr.Row() as vid_upload_row:
+        with gr.Row() as wav_upload_row:
+            wav_upload = gr.Audio(sources="upload", type='filepath', label='选择音频文件，注意采样率不低于16khz')
+        with gr.Row(visible=False) as img_upload_row:
+            img_upload = gr.Image(sources="upload", type='filepath', label='选择图像文件')
+        with gr.Row(visible=False) as vid_upload_row:
             vid_upload = gr.Video(sources="upload", label='选择视频文件')
-        with gr.Row(visible=False) as wav_upload_row:
-            wav_upload = gr.Audio(sources="upload", type='filepath', label='选择prompt音频文件，注意采样率不低于16khz')
+        
 
         generate_button = gr.Button("生成文本")
         script_output = gr.Textbox(label='检测到的脚本内容', lines=10, autoscroll=True, interactive=False)        
-        mode_checkbox_group.change(fn=change_instruction, inputs=[mode_checkbox_group], outputs=[instruction_text, vid_upload_row, wav_upload_row])
+        mode_checkbox_group.change(fn=change_mode, inputs=[mode_checkbox_group], outputs=[instruction_text, wav_upload_row, img_upload_row, vid_upload_row])
         generate_button.click(fn=generate_script,inputs=[],outputs=[script_output])
 
         # Gradio中的Video对象作为输入时报错TypeError: argument of type 'bool' is not iterable
