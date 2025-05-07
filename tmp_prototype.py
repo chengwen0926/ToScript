@@ -297,14 +297,13 @@ if __name__ == '__main__':
     # res = split_audio_preserve_samplerate(audio_path)
     # print(res)
 
-    # path = 'asset'
-    # res = get_audio_files(path,True)
-    # # print(len(res))
+    path = 'asset'
+    res = get_audio_files(path,True)
+    print(len(res))
 
     # append_to_file('asset/record.txt','初始化语句')
 
     # path = 'asset/从21世纪安全撤离.mp4'
     # full_process_test(path)
-    path = 'asset/从21世纪安全撤离_audio_segments'
-    audio_func_test(path)
-    
+    # path = 'asset/从21世纪安全撤离_audio_segments'
+    # audio_func_test(path)

@@ -14,12 +14,14 @@ from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 import os
 import huggingface_hub
 import os
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 import config
 from pydub import AudioSegment
 from pathlib import Path
 import logging
 from pydub.silence import detect_nonsilent
+
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
 
 def download_repo(repo_id):
     local_dir = os.path.join(config.PRETRAINED_MODEL_ROOT_DIR, repo_id.split('/')[-1])
@@ -36,7 +38,7 @@ def check_audio_duration(file_path):
 
 def single_audio_to_txt(audio_file, model): # 可以是本地模型也可以是repo_id
         # 检查音频类型和时长
-        if audio_file.is_file() and audio_file.suffix.lower() in config.AUDIO_EXTENSIONS and check_audio_duration(audio_file):
+        if os.path.splitext(audio_file)[1] in config.AUDIO_EXTENSIONS and check_audio_duration(audio_file):
             pass
         else:
             raise Exception('[Enlight] 音频不符合要求')
@@ -101,18 +103,20 @@ def append_content_to_file(content: str, file_path: str) -> bool:
 def split_audio(
         audio_file:str,
         output_dir: str, 
-        max_duration:float, 
+        max_duration:float = 30, 
         start_time: float = 0.0, 
-        end_time: float = None
-    )->list:
+        end_time: float = None,
+        buffer_time: int = 250
+    ):
     try:
         # 音频加载与参数初始化
         audio = AudioSegment.from_file(audio_file)
-        original_sr = audio.frame_rate
+        original_sr = audio.frame_rate # sample_rate
 
         # 时间单位转换（秒→毫秒）
         start_ms = int(start_time * 1000)
         end_ms = int(end_time * 1000) if end_time else len(audio)
+        max_duration_ms = int(max_duration * 1000)
 
         # 区间有效性校验
         if start_ms < 0 or start_ms >= len(audio):
@@ -134,16 +138,16 @@ def split_audio(
         )
         segments = []
         for start_ms, end_ms in voice_ranges:
-            # 添加500ms缓冲
-            safe_start = max(0, start_ms - 500)
-            safe_end = min(len(audio), end_ms + 500)
+            # 添加缓冲时间
+            safe_start = max(0, start_ms - buffer_time)
+            safe_end = min(len(audio), end_ms + buffer_time)
             segments.append(audio[safe_start:safe_end])
 
         final_segments = []
         for seg in segments:
-            if len(seg) > max_duration:
+            if len(seg) > max_duration_ms:
                 # 按照规定的最长切片时间进行切分
-                for chunk in seg[::max_duration]:
+                for chunk in seg[::max_duration_ms]:
                     final_segments.append(chunk)
             else:
                 final_segments.append(seg)
@@ -157,28 +161,80 @@ def split_audio(
                 parameters=["-ar", str(original_sr)])
             saved_files.append(output_path)
             
-        return final_segments
+        return True
     
     except Exception as e:
         logging.error(f'[Enlight] 音频切分失败 \n {str(e)}')
+        return False
+
+def get_audio_files(folder_path: str, recursive: bool = True) -> list:
+    """
+    获取指定文件夹中的所有音频文件路径（支持递归搜索）    
+    支持格式：MP3/WAV/FLAC/AAC/OGG/WMA
+    """
+    try:
+        if not os.path.exists(folder_path):
+            raise FileNotFoundError(f"[Enlight] 目录不存在 {folder_path}")
+        if not os.path.isdir(folder_path):
+            raise NotADirectoryError(f"[Enlight] 路径不是目录 {folder_path}")
+        
+        audio_extensions = config.AUDIO_EXTENSIONS
+        audio_files = []
+        search_method = Path(folder_path).rglob('*') if recursive else Path(folder_path).glob('*')
+        
+        for file_path in search_method:
+            try:
+                # 格式验证与权限检查
+                if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
+                    audio_files.append(str(file_path.resolve()))
+            except PermissionError as e:
+                logging.error(f'[Enlight] 权限拒绝访问：{file_path}\n {str(e)}')
+            except Exception as e:
+                logging.error(f'[Enlight] 未知错误：{file_path}\n {str(e)}')
+    
+        return audio_files
+
+    except (FileNotFoundError, NotADirectoryError) as e:
+        logging.error(f'[Enlight] 路径错误\n {str(e)}')
+        return []
+    except Exception as e:
+        logging.error(f'[Enlight] 系统级错误\n {str(e)}')
         return []
 
+def process():
+    audio_path = './asset/audio.mp3'
+    output_dir = './outputs'
+    model_dir = './pretrained_models/whisper-large-v3-turbo'
+    txt_dir = './temp_record.txt'
+    split_audio(
+        audio_file = audio_path,
+        output_dir = output_dir, 
+        max_duration = 29, 
+        start_time = 52, 
+        end_time = None
+    )
+    audios = get_audio_files(output_dir)
+    for audio in audios:
+        res = single_audio_to_txt(audio_file=audio, model=model_dir)
+        append_content_to_file(content=res, file_path=txt_dir)
 
-class AudioProcesser:
-    '''
-    源音频文件所在的目录
-    音频划分策略（最长单个片段时间、划分逻辑）
-        Strategy 类来记录相应的划分策略
-    目标文件夹位置
-        命名格式
-        存储类型
-    选择的模型
-        whisper
-        ...
-    '''
-    def __init__(self):
-        pass
+
+
+# class AudioProcesser:
+#     '''
+#     源音频文件所在的目录
+#     音频划分策略（最长单个片段时间、划分逻辑）
+#         Strategy 类来记录相应的划分策略
+#     目标文件夹位置
+#         命名格式
+#         存储类型
+#     选择的模型
+#         whisper
+#         ...
+#     '''
+#     def __init__(self):
+#         pass
 
 
 if __name__=='__main__':
-    pass
+    process()
