@@ -3,6 +3,7 @@
 asset/
 outputs/
 pretrained_models/
+records/
 
 # 常见的 Python 忽略项
 __pycache__/

@@ -36,7 +36,7 @@ def check_audio_duration(file_path):
     return duration_seconds < config.MAX_AUDIO_DURATION
 
 
-def single_audio_to_txt(audio_file, model): # 可以是本地模型也可以是repo_id
+def single_audio_to_txt(audio_file, model, language='chinese'): # 可以是本地模型也可以是repo_id
         # 检查音频类型和时长
         if os.path.splitext(audio_file)[1] in config.AUDIO_EXTENSIONS and check_audio_duration(audio_file):
             pass
@@ -72,7 +72,7 @@ def single_audio_to_txt(audio_file, model): # 可以是本地模型也可以是r
                 torch_dtype=torch_dtype,
                 device=device,
             )
-            result = pipe(audio_file)
+            result = pipe(audio_file, generate_kwargs={"language": language})
             return result
         except Exception as e:
             logging.error(f'[Enlight] 模型调用报错 \n {str(e)}')
@@ -202,15 +202,15 @@ def get_audio_files(folder_path: str, recursive: bool = True) -> list:
         return []
 
 def process():
-    audio_path = './asset/audio.mp3'
-    output_dir = './outputs'
+    audio_path = './asset/哪吒之魔童降世_audio.mp3'
+    output_dir = './outputs_nezha'
     model_dir = './pretrained_models/whisper-large-v3-turbo'
-    txt_dir = './temp_record.txt'
+    txt_dir = './temp_record_nezha.txt'
     split_audio(
         audio_file = audio_path,
         output_dir = output_dir, 
         max_duration = 29, 
-        start_time = 52, 
+        start_time = 96, 
         end_time = None
     )
     audios = get_audio_files(output_dir)

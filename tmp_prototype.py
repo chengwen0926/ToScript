@@ -297,9 +297,12 @@ if __name__ == '__main__':
     # res = split_audio_preserve_samplerate(audio_path)
     # print(res)
 
-    path = 'asset'
-    res = get_audio_files(path,True)
-    print(len(res))
+    path = 'asset/哪吒之魔童降世.mp4'
+    extract_audio(path)
+
+    # path = 'asset'
+    # res = get_audio_files(path,True)
+    # print(len(res))
 
     # append_to_file('asset/record.txt','初始化语句')
 
