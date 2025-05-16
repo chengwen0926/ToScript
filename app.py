@@ -50,7 +50,7 @@ def main():
     theme = gr.themes.Soft()
     block = gr.Blocks(theme=theme).queue()
     with block as demo:
-        gr.Markdown("### 代码库 [ToScript](https://github.com/FunAudioLLM/CosyVoice) \
+        gr.Markdown("### 代码库 [ToScript](https://github.com/chengwen0926/ToScript) \
                     预训练模型 [Whisper-Large-v3-Turbo](https://huggingface.co/openai/whisper-large-v3-turbo)")
         gr.Markdown("#### 请选择推理模式，并按照提示步骤进行操作")
 
