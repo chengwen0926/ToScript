@@ -1,31 +1,152 @@
 from pydub import AudioSegment
+from pydub.silence import detect_nonsilent
 import librosa
 import numpy as np
+import config
+import logging
+import utils
+import os
+from pathlib import Path
 
+
+logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
 class AudioProcessor:
-    def __init__(self, backend='pydub'):
-        self.audio_data = None
-        self.sample_rate = 44100
+    def __init__(self, audio_file, backend='pydub'):
         self.backend = backend
-    
-    def load_audio(self, file_path: str) -> np.ndarray:
-        '''
-        将音频文件加载得到对应的numpy数据格式的文件
+        self.audio_file = audio_file
 
-        '''
         if self.backend == 'pydub':
-            audio = AudioSegment.from_file(file_path)
-            self.audio_data = np.array(audio.get_array_of_samples())
-        elif self.backend == 'librosa':
-            self.audio_data, self.sample_rate = librosa.load(file_path, sr=None)
-        return self.audio_data
-'''
-AudioProcessor
-    获取传入音频的信息
-        check_audio_duration
-    对音频进行切分
-    获取指定文件夹中所有音乐类型的内容
+            self.audio = AudioSegment.from_file(audio_file)            
+            self.sample_rate = self.audio.frame_rate
+            self.duration = self.audio.duration_seconds
+            self.extension = self.audio.file_extension
+            
+            if self.extension not in config.AUDIO_EXTENSIONS:
+                raise ValueError(f"[Enlight] AudioProcessor类实现尚不支持pydub以外的库")
 
-Model
-'''
+    def slice_audio(
+        self,
+        save:bool = False,
+        local_dir: str = '', 
+        maximum_duration:float = 30, 
+        slice_start: float = 0.0, 
+        slice_end: float = None,
+        buffer: int = 250
+    ):
+        '''
+            对初始化上传的音频文件进行片段切分操作
+        Args:
+            save: 是否将切分后的音频片段进行保存，如果是的话需要填写参数local_dir
+            local_dir: 音频文件保存的本地目录
+            maximum_duration: 音频片段的最大时长，单位为秒s
+            slice_start: 开始执行切分操作的时间位置，单位为秒s
+            slice_end: 结束执行切分操作的时间位置，单位为秒s
+            buffer: 切分片段两边保留的缓冲时间，单位为毫秒ms
+
+
+        Returns:
+            segments: 切分后的音频列表
+        '''
+        try:
+            slice_start_ms = int(slice_start * 1000)
+            slice_end_ms = int(slice_end * 1000) if slice_end else len(self.audio)
+            maximum_duration_ms = int(maximum_duration * 1000)
+
+            if slice_start_ms<0 or slice_start_ms>=len(self.audio):
+                raise ValueError(f"[Enlight] slice_start超出时间原有音频范围")
+            if slice_end_ms>len(self.audio):
+                slice_end_ms = len(self.audio)
+
+            slice_audio = self.audio[slice_start_ms: slice_end_ms]
+            silence_params = {
+                'min_silence_len': 800,   # 静音段最小800ms
+                'silence_thresh': -35,    # 阈值降低至-35dB
+                'seek_step': 15          # 检测步长缩短到15ms
+            }
+            voice_ranges = detect_nonsilent(
+                slice_audio,
+                **silence_params
+            )
+            segments = []
+            for seg_start_ms, seg_end_ms in voice_ranges:
+                # 添加缓冲时间
+                safe_start = max(0, seg_start_ms - buffer)
+                safe_end = min(len(slice_audio), seg_end_ms + buffer)
+                segments.append(slice_audio[safe_start:safe_end])
+            
+            # 再一次切分，将超过maximum_duration的片段进行切分
+            final_segments = []
+            for segment in segments:
+                if len(segment) > maximum_duration_ms:
+                    for chunk in segment[::maximum_duration_ms]:
+                        final_segments.append(chunk)
+                else:
+                    final_segments.append(segment)
+            
+            if save:
+                utils.check_dir(local_dir)
+                saved_files = []
+                for idx, seg in enumerate(final_segments):
+                    output_path = os.path.join(local_dir,  f"audio_seg_{idx:03d}{os.path.splitext(self.audio_file)[1]}")
+                    seg.export(output_path, 
+                        format=os.path.splitext(self.audio_file)[1][1:],
+                        parameters=["-ar", str(self.sample_rate)])
+                    saved_files.append(output_path)
+            segments = final_segments
+            return segments
+
+        except Exception as e:
+            logging.error(f'[Enlight] 音频切分失败 \n {str(e)}')
+            return None
+
+    
+    @classmethod
+    def detect_audio_files(
+        cls, 
+        path:str, 
+        extension:list[str]=config.AUDIO_EXTENSIONS, 
+        recursive: bool = True
+    )->list:
+        '''
+            类函数：读取指定目录下所有符合类型要求的文件路径，支持递归读取
+        
+        Args:
+            path: 读取路径
+            extension: 待读取的文件类型
+            recursive: 递归读取
+
+        Returns:
+            audio_files: 读取到的包含有所有符合文件的路径列表
+        '''
+        try:
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"[Enlight] {path} 路径不存在")
+            if not os.path.isdir(path):
+                raise NotADirectoryError(f"[Enlight] {path} 路径不是文件夹目录")
+            
+            audio_extensions = config.AUDIO_EXTENSIONS
+            audio_files = []
+            search_method = Path(path).rglob('*') if recursive else Path(path).glob('*')
+            
+            for file_path in search_method:
+                try:
+                    # 格式验证与权限检查
+                    if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
+                        audio_files.append(str(file_path.resolve()))
+                except PermissionError as e:
+                    logging.error(f'[Enlight] 权限拒绝访问：{file_path}\n {str(e)}')
+                except Exception as e:
+                    logging.error(f'[Enlight] 未知错误：{file_path}\n {str(e)}')
+        
+            return audio_files
+
+        except (FileNotFoundError, NotADirectoryError) as e:
+            logging.error(f'[Enlight] 路径错误\n {str(e)}')
+            return []
+        except Exception as e:
+            logging.error(f'[Enlight] 检测音频文件时出现报错\n {str(e)}')
+            return []
