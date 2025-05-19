@@ -38,7 +38,8 @@ def download_repo(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
-
+    
+    check_dir(local_dir)
     local_dir = os.path.join(local_dir, repo_id.split('/')[-1])
 
     # 参考 https://huggingface.co/docs/huggingface_hub/package_reference/file_download#huggingface_hub.snapshot_download
@@ -70,6 +71,18 @@ def download_repo(
                 logging.error(f"[Enlight] 下载失败, 已达到最大重试次数，可尝试手动将 {repo_id} 下载到 {local_dir}")
                 return ""
             
+# 路径相关操作
+def check_dir(path:str):
+    dir_path = Path(path)
+    if not dir_path.exists():
+        try:
+            dir_path.mkdir(parents=True, exist_ok=True)
+            logging.info(f"[Enlight] 目录创建成功：{dir_path}")
+        except PermissionError:
+            logging.info(f"[Enlight] 权限不足，无法创建目录：{dir_path}")
+    else:
+        logging.info(f"[Enlight] 目录已存在：{dir_path}")
+
 
 # 文件处理相关操作
 def str_to_bool(s: str) -> bool:
