@@ -39,7 +39,7 @@ def download_repo(
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
     
-    check_dir(local_dir)
+    check_path(local_dir)
     local_dir = os.path.join(local_dir, repo_id.split('/')[-1])
 
     # 参考 https://huggingface.co/docs/huggingface_hub/package_reference/file_download#huggingface_hub.snapshot_download

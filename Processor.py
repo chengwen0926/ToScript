@@ -8,6 +8,8 @@ import utils
 import os
 from pathlib import Path
 import ffmpeg
+import subprocess
+
 
 logging.basicConfig(
         level=logging.INFO,
@@ -128,7 +130,7 @@ class AudioProcessor:
             if not os.path.isdir(path):
                 raise NotADirectoryError(f"[Enlight] {path} 路径不是文件夹目录")
             
-            audio_extensions = config.AUDIO_EXTENSIONS
+            audio_extensions = extension
             audio_files = []
             search_method = Path(path).rglob('*') if recursive else Path(path).glob('*')
             
@@ -150,6 +152,25 @@ class AudioProcessor:
         except Exception as e:
             logging.error(f'[Enlight] 检测音频文件时出现报错\n {str(e)}')
             return []
+        
+    @classmethod
+    def check_audio_quality(cls, audio_file:str):
+        '''
+            输出音频参数
+
+        Args:
+            audio_file: 音频文件路径
+        '''
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'a',
+            '-show_entries', 'stream=codec_name,sample_rate,channels,bits_per_sample',
+            '-of', 'default=noprint_wrappers=1',
+            audio_file
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        print(result.stdout)
+
 
 class VideoProcessor:
     def __init__(self, video_file):
@@ -157,14 +178,11 @@ class VideoProcessor:
 
     def separate_audio(
         self,
-        # save:bool = True,
         local_dir: str = ''
     ):
         '''
             从视频文件中分离音频并保存
-
         Args:
-            # save: 是否将分离后的音频片段进行保存，如果是的话需要填写参数local_dir
             local_dir: 音频文件保存的本地目录
 
         Returns:
@@ -191,11 +209,14 @@ class VideoProcessor:
                     ac=2,               # 立体声
                     loglevel="error")
             .run(overwrite_output=True))
-       
 
-
-    
 
 if __name__=='__main__':
     # 示例调用
-    extract_audio_lossless("input.mp4", "output.wav")
+
+    # 视频音频分离
+    # vp = VideoProcessor('./asset/哪吒之魔童降世.mp4')
+    # vp.separate_audio('./outputs')
+
+    # 音频参数展示
+    AudioProcessor.check_audio_quality('./outputs/separate_audio.wav')
