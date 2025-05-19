@@ -1,14 +1,4 @@
-# from modelscope import snapshot_download
-# import os
 
-# class ToScript:
-
-#     def __init__(self, model_dir):
-#         self.instruct = True if '-Instruct' in model_dir else False
-#         self.model_dir = model_dir
-#         # self.fp16 = fp16
-#         if not os.path.exists(model_dir):
-#             model_dir = snapshot_download(model_dir)
 import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 import os
@@ -19,8 +9,56 @@ from pydub import AudioSegment
 from pathlib import Path
 import logging
 from pydub.silence import detect_nonsilent
+import utils
 
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
+CATEGORY = [
+        'Audio2Script',
+        'Image2Script',
+        'Video2Script'
+    ]
+MODEL = {
+    'Audio2Script':'whisper-large-v3-turbo',
+    'Image2Script':'',
+    'Video2Script':'whisper-large-v3-turbo'
+}
+
+
+class ToScript:
+    '''
+        指定任务的处理类型
+        处理的音频、图像、视频内容
+        处理类
+        模型对应
+    '''
+
+    def __init__(
+        self,
+        category:str,
+        source:str, # 源文件
+        output_dir:str, # 输出script的位置
+    ):
+        if category not in CATEGORY:
+            raise ValueError(f"[Enlight] 所选任务类别无法识别")
+        self.category = category
+    
+    def initial(self):
+        model = MODEL[self.category]
+        utils.download_repo(model)
+    
+    def process(self):
+        '''
+            接收输入内容 -> 将script输出到
+        '''
+        if self.category == 'Audio2Script':
+            pass
+        elif self.category == 'Image2Script':
+            pass
+        elif self.category == 'Video2Script':
+            pass
+            
+
 
 
 def download_repo(repo_id):

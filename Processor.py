@@ -22,13 +22,15 @@ class AudioProcessor:
         self.audio_file = audio_file
 
         if self.backend == 'pydub':
-            self.audio = AudioSegment.from_file(audio_file)            
+            self.audio = AudioSegment.from_file(audio_file)
             self.sample_rate = self.audio.frame_rate
             self.duration = self.audio.duration_seconds
-            self.extension = self.audio.file_extension
+            self.extension = os.path.splitext(self.audio_file)[1]
             
             if self.extension not in config.AUDIO_EXTENSIONS:
-                raise ValueError(f"[Enlight] AudioProcessor类实现尚不支持pydub以外的库")
+                raise ValueError(f"[Enlight] AudioProcessor类尚不支持处理{config.AUDIO_EXTENSIONS}以外的音频类型")
+        else:
+            raise ValueError(f"[Enlight] AudioProcessor类实现尚不支持pydub以外的库")
 
     def slice_audio(
         self,
@@ -53,6 +55,7 @@ class AudioProcessor:
         Returns:
             segments: 切分后的音频列表
         '''
+        logging.info(f'开始切分音频文件 {self.audio_file}')
         try:
             slice_start_ms = int(slice_start * 1000)
             slice_end_ms = int(slice_end * 1000) if slice_end else len(self.audio)
@@ -62,6 +65,8 @@ class AudioProcessor:
                 raise ValueError(f"[Enlight] slice_start超出时间原有音频范围")
             if slice_end_ms>len(self.audio):
                 slice_end_ms = len(self.audio)
+            elif slice_end_ms<0:
+                slice_end_ms = len(self.audio) + slice_end_ms
 
             slice_audio = self.audio[slice_start_ms: slice_end_ms]
             silence_params = {
@@ -93,9 +98,9 @@ class AudioProcessor:
                 utils.check_path(local_dir)
                 saved_files = []
                 for idx, seg in enumerate(final_segments):
-                    output_path = os.path.join(local_dir,  f"audio_seg_{idx:03d}{os.path.splitext(self.audio_file)[1]}")
+                    output_path = os.path.join(local_dir,  f"audio_seg_{idx:04d}{self.extension}")
                     seg.export(output_path, 
-                        format=os.path.splitext(self.audio_file)[1][1:],
+                        format=self.extension[1:],
                         parameters=["-ar", str(self.sample_rate)])
                     saved_files.append(output_path)
             segments = final_segments
@@ -105,7 +110,6 @@ class AudioProcessor:
             logging.error(f'[Enlight] 音频切分失败 \n {str(e)}')
             return None
 
-    
     @classmethod
     def detect_audio_files(
         cls, 
@@ -219,4 +223,16 @@ if __name__=='__main__':
     # vp.separate_audio('./outputs')
 
     # 音频参数展示
-    AudioProcessor.check_audio_quality('./outputs/separate_audio.wav')
+    # AudioProcessor.check_audio_quality('./outputs/separate_audio.wav')
+
+    # 音频内容切分
+    audio_file = './outputs/separate_audio.wav'
+    AP = AudioProcessor('./outputs/separate_audio.wav')
+    AP.slice_audio(
+        save=True,
+        local_dir='./outputs/nezha_audio_slice',
+        maximum_duration=29,
+        slice_start=95,
+        slice_end=-400,
+        buffer=250
+    )

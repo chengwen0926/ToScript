@@ -33,6 +33,7 @@ git clone https://huggingface.co/openai/whisper-large-v3-turbo
 
 
 ## Future Updates ✌️
+- [ ] 关于logger、报错、处理报错相关的统一处理标准
 - [ ] utils.py 脚本中有关文件处理代码需要进一步完善
 - [ ] app.py 脚本中的参数功能补全argparse
 - [ ] 检测模型文件是否存在，不存在的话就先执行下载操作
