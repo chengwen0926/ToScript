@@ -1,9 +1,11 @@
 # 忽略预训练模型文件夹
+pretrained_models/
+
+# 忽略本地其他配置或文件
 .gradio/
 asset/
 outputs/
-pretrained_models/
-records/
+tmp*.py
 
 # 常见的 Python 忽略项
 __pycache__/
