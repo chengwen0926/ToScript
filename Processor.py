@@ -7,7 +7,7 @@ import logging
 import utils
 import os
 from pathlib import Path
-
+import ffmpeg
 
 logging.basicConfig(
         level=logging.INFO,
@@ -88,7 +88,7 @@ class AudioProcessor:
                     final_segments.append(segment)
             
             if save:
-                utils.check_dir(local_dir)
+                utils.check_path(local_dir)
                 saved_files = []
                 for idx, seg in enumerate(final_segments):
                     output_path = os.path.join(local_dir,  f"audio_seg_{idx:03d}{os.path.splitext(self.audio_file)[1]}")
@@ -150,3 +150,52 @@ class AudioProcessor:
         except Exception as e:
             logging.error(f'[Enlight] 检测音频文件时出现报错\n {str(e)}')
             return []
+
+class VideoProcessor:
+    def __init__(self, video_file):
+        self.video_file = video_file
+
+    def separate_audio(
+        self,
+        # save:bool = True,
+        local_dir: str = ''
+    ):
+        '''
+            从视频文件中分离音频并保存
+
+        Args:
+            # save: 是否将分离后的音频片段进行保存，如果是的话需要填写参数local_dir
+            local_dir: 音频文件保存的本地目录
+
+        Returns:
+
+        '''
+        probe = ffmpeg.probe(self.video_file)
+        audio_stream = next((s for s in probe['streams'] if s['codec_type'] == 'audio'), None)
+
+        audio_file = 'separate_audio.wav'
+        utils.check_path(local_dir)
+        output_audio = os.path.join(local_dir, audio_file)
+
+        if audio_stream and audio_stream['codec_name'] in ['pcm_s16le', 'flac']:
+            # 直接复制原始无损音频流
+            (ffmpeg.input(self.video_file)
+            .output(output_audio, acodec='copy', loglevel="error")
+            .run(overwrite_output=True))
+        else:
+            # 转码为无损WAV格式
+            (ffmpeg.input(self.video_file)
+            .output(output_audio, 
+                    acodec='pcm_s16le',  # 16位无损PCM编码
+                    ar='44100',          # 采样率44.1kHz（CD标准）
+                    ac=2,               # 立体声
+                    loglevel="error")
+            .run(overwrite_output=True))
+       
+
+
+    
+
+if __name__=='__main__':
+    # 示例调用
+    extract_audio_lossless("input.mp4", "output.wav")

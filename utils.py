@@ -72,7 +72,7 @@ def download_repo(
                 return ""
             
 # 路径相关操作
-def check_dir(path:str):
+def check_path(path:str):
     dir_path = Path(path)
     if not dir_path.exists():
         try:
@@ -80,6 +80,8 @@ def check_dir(path:str):
             logging.info(f"[Enlight] 目录创建成功：{dir_path}")
         except PermissionError:
             logging.info(f"[Enlight] 权限不足，无法创建目录：{dir_path}")
+        except Exception as e:
+            logging.error(f"[Enlight] 目录创建失败: {str(e)}")
     else:
         logging.info(f"[Enlight] 目录已存在：{dir_path}")
 
