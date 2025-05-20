@@ -10,6 +10,9 @@ from pathlib import Path
 import logging
 from pydub.silence import detect_nonsilent
 import utils
+from model import Model
+import processor
+import time
 
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
@@ -18,55 +21,14 @@ CATEGORY = [
         'Image2Script',
         'Video2Script'
     ]
-MODEL = {
+DEFAULT_MODEL = {
     'Audio2Script':'whisper-large-v3-turbo',
     'Image2Script':'',
     'Video2Script':'whisper-large-v3-turbo'
 }
 
-class Model:
-    '''
-        用于封装'Audio2Script'、'Image2Script'、'Video2Script'三类模型的类
-    '''
-    def __init__(self, repo_id:str):
-        self.model_dir = os.path.join(config.PRETRAINED_MODEL_ROOT_DIR, repo_id)
-        self.language = 'chinese'
-        if not os.path.exists(self.model_dir): # TODO 只存在对应目录还不够，应该添加检查模型文件是否完整的逻辑
-            download_repo(repo_id=repo_id)
-
-    def invoke(self, source:str):
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-        
-        # 加载模型
-        try:
-            # TODO 确定是不是所有音频转文本的模型都可以通过AutoModelForSpeechSeq2Seq来调用
-            model = AutoModelForSpeechSeq2Seq.from_pretrained(
-                self.model_dir, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
-            )
-            model.to(device)
-            processor = AutoProcessor.from_pretrained(self.model_dir)
-            pipe = pipeline(
-                "automatic-speech-recognition",
-                model=model,
-                tokenizer=processor.tokenizer,
-                feature_extractor=processor.feature_extractor,
-                torch_dtype=torch_dtype,
-                device=device,
-            )
-            result = pipe(source, generate_kwargs={"language": self.language})
-            return result
-        except Exception as e:
-            logging.error(f'[Enlight] 模型调用报错 \n {str(e)}')
-
 
 class ToScript:
-    '''
-        指定任务的处理类型
-        处理的音频、图像、视频内容
-        处理类
-        模型对应
-    '''
 
     def __init__(
         self, 
@@ -76,44 +38,96 @@ class ToScript:
         local_dir:str='./'
     ):
         '''
-         Args:
-            source: huggingface中的存储库ID
-            repo_id: 模型下载到本地的路径
-            save: 是否将切分后的音频片段进行保存，如果是的话需要填写参数local_dir
-            local_dir: 音频文件保存的本地目录
+
+        Args:
+            source: 需要被处理成文本的文件
+            repo_id: 模型的Repository ID
+            save: 转写得到的文本是否保存，如果是的话需要填写参数local_dir
+            local_dir: 文本文件保存的本地目录
         Returns:
             
         '''
+        self.source = source
+        self.filename = os.path.splitext(self.source)[0]
+        self.extension = os.path.splitext(self.source)[1]
+        if self.extension in config.AUDIO_EXTENSIONS: # TODO 补充完善音频、图像、视频的处理逻辑
+            self.category = 'Audio2Script'
+        elif self.extension in config.AUDIO_EXTENSIONS:
+            self.category = 'Image2Script'
+        elif self.extension in config.VIDEO_EXTENSIONS:
+            self.category = 'Video2Script'
+        self.repo_id = repo_id if repo_id else DEFAULT_MODEL[self.category]
+        self.model = Model(self.repo_id)
+        self.save = save
+        self.local_dir = local_dir
 
+    
+    def execute(self)->list[str]:
+        '''
+            执行to script操作
+        Returns:
+            res: 转写得到的文本组成的列表
+        '''
+        # 获取时间戳
+        timestamp = time.time()
+        struct_time = time.localtime(timestamp)
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", struct_time)
 
-    def __init__(
-        self,
-        category:str,
-        source:str, # 源文件
-        output_dir:str, # 输出script的位置
-    ):
-        if category not in CATEGORY:
-            raise ValueError(f"[Enlight] 所选任务类别无法识别")
-        self.category = category
-    
-    def initial(self):
-        model = MODEL[self.category]
-        utils.download_repo(model)
-    
-    def process(self):
-        '''
-            接收输入内容 -> 将script输出到
-        '''
+        logging.info('''[Enlight] 开始执行转文本操作，具体任务信息如下\n
+                     开始时间 - {timestamp}\n
+                     处理文件 - {self.source}\n
+                     任务类型 - {self.category}\n
+                     使用模型 - {self.repo_id}\n
+                     ''')
+        tmp_output_dir = './outputs/tmp/'.format(self.filename+' '+timestamp)
+        output_dir = './outputs/{}'.format(self.filename+' '+timestamp)
+        output_file = os.path.join(self.local_dir, 'result.txt')
+
         if self.category == 'Audio2Script':
-            pass
-        elif self.category == 'Image2Script':
-            pass
-        elif self.category == 'Video2Script':
-            pass
+            ap = processor.AudioProcessor(self.source)
+            ap.slice_audio(
+                save=True,
+                local_dir=output_dir, # TODO 添加对开头和结尾的手动标记
+            )
+            files = processor.AudioProcessor.detect_audio_files(output_dir)
+            res = []
+            for file in files:
+                content = self.model.invoke(file)
+                res.append(content)
+                if self.save:
+                    utils.append_str_to_file(content, output_file)
             
+            logging.info(f'[Enlight] {self.category}执行完毕')
+            return res
+            
+        elif self.category == 'Image2Script':
+            logging.error(f'[Enlight] {self.category}逻辑尚未完成') # TODO 完善相关逻辑
+
+        elif self.category == 'Video2Script':
+            vp = processor.VideoProcessor(self.source)
+            separate_audio_dir = vp.separate_audio(tmp_output_dir)
+            ap = processor.AudioProcessor(separate_audio_dir)
+            ap.slice_audio(
+                save=True,
+                local_dir=output_dir, # TODO 添加对开头和结尾的手动标记
+            )
+            files = processor.AudioProcessor.detect_audio_files(output_dir)
+            res = []
+            for file in files:
+                content = self.model.invoke(file)
+                res.append(content)
+                if self.save:
+                    utils.append_str_to_file(content, output_file)
+
+            logging.info(f'[Enlight] {self.category}执行完毕')
+            return res
+'''
+TODO 250520下午
+将save和local_dir的参数考虑到处理过程中
+'''
 
 
-
+# ===== pre =====
 def download_repo(repo_id):
     local_dir = os.path.join(config.PRETRAINED_MODEL_ROOT_DIR, repo_id.split('/')[-1])
     # 参考 https://huggingface.co/docs/huggingface_hub/package_reference/file_download#huggingface_hub.snapshot_download

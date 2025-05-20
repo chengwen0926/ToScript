@@ -13,66 +13,9 @@ import os
 import json
 import time
 
-# 模型相关操作
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
-def download_repo(
-        repo_id:str, 
-        local_dir:str=config.PRETRAINED_MODEL_ROOT_DIR, 
-        max_retries:int=3, 
-        hf_token:str=''
-    ):
-    '''
-    根据repo_id下载HuggingFace中的模型仓库
-
-    Args:
-        repo_id: huggingface中的存储库ID
-        local_dir: 模型下载到本地的路径
-        max_retries: 网络问题出现下载失败时的最大重试次数
-        hf_token: 个人huggingface token
-
-    Returns:
-        local_dir: 模型下载成功后存放在本地的目录 若下载失败则返回""
-    '''
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
-    
-    check_path(local_dir)
-    local_dir = os.path.join(local_dir, repo_id.split('/')[-1])
-
-    # 参考 https://huggingface.co/docs/huggingface_hub/package_reference/file_download#huggingface_hub.snapshot_download
-    for attempt in range(1,max_retries+1):
-        logging.info(f"[Enlight] 开始下载: {repo_id} (尝试次数: {attempt}/{max_retries})")
-        try:
-            if hf_token:
-                huggingface_hub.snapshot_download(
-                    repo_id=repo_id, 
-                    local_dir=local_dir,
-                    resume_download=True, # 启用断点续传
-                )
-            else:
-                huggingface_hub.snapshot_download(
-                    repo_id=repo_id, 
-                    local_dir=local_dir,
-                    resume_download=True, # 启用断点续传
-                    token=hf_token
-                )
-            logging.info(f"[Enlight] 下载成功: {repo_id}")
-            return local_dir
-        except Exception as e:
-            logging.error(f"[Enlight] 下载失败: {str(e)}")
-            if attempt<=max_retries:
-                retry_delay = 10 * (attempt + 1)
-                logging.info(f"[Enlight] {retry_delay}秒后重试...")
-                time.sleep(retry_delay)
-            else:
-                logging.error(f"[Enlight] 下载失败, 已达到最大重试次数，可尝试手动将 {repo_id} 下载到 {local_dir}")
-                return ""
-            
 # 路径相关操作
-def check_path(path:str):
+def check_dir(path:str):
     dir_path = Path(path)
     if not dir_path.exists():
         try:
@@ -115,7 +58,7 @@ def all_symbols_or_digits(s: str) -> bool:
     valid_characters = set("0123456789!@#$%^&*()-_=+[]{}|;:'\",.<>?/`~")
     return all(char in valid_characters for char in s)
 
-
+  
 def append_dicts_to_txt(list: List[dict], file_path: str) -> None:
     with open(file_path, "a", encoding="utf-8") as file:
         for data in list:
@@ -131,6 +74,29 @@ def append_list_to_txt(dataset: List, file_path: str) -> None:
         for data in dataset:
             file.write(str(data) + "\n")
     file.close()
+
+
+def append_str_to_file(content: str, file_path: str) -> bool:
+    try:
+        target_file = Path(file_path)
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        content_str = f"\n{str(content).strip()}"  # 自动添加换行符
+        with target_file.open("a", encoding="utf-8") as f:
+            f.write(content_str)
+            
+        return True
+        
+    except PermissionError as e:
+        logging.error(f"[Enlight] 权限不足\n {file_path} - {str(e)}")
+        return False
+    except IOError as e:
+        logging.error(f"[Enlight] I/O错误\n {file_path} - {str(e)}")
+        return False
+    except Exception as e:
+        logging.error(f"[Enlight] 未知错误\n {file_path} - {str(e)}")
+        return False 
+    
 
 def load_content_from_md(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:

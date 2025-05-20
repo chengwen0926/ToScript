@@ -36,7 +36,7 @@ class AudioProcessor:
         self,
         save:bool = False,
         local_dir: str = '', 
-        maximum_duration:float = 30, 
+        maximum_duration:float = 29, 
         slice_start: float = 0.0, 
         slice_end: float = None,
         buffer: int = 250
