@@ -15,9 +15,30 @@ import time
 
 
 # 路径相关操作
-def check_dir(path:str):
+def check_dir(path:str, mkdir:bool=True)->bool:
+    '''
+        检查路径或者文件是否存在，若不存在可以指定是否创建
+    Args:
+        path: 目录或文件路径
+        mkdir: 在目录或文件路径不存在的情况下是否创建
+    Returns:
+        输入目录是否存在，存在则返回True，不存在则返回False
+    '''
+    # 已存在路径
     dir_path = Path(path)
-    if not dir_path.exists():
+    if dir_path.exists():
+        logging.info(f"[Enlight] 目录已存在：{dir_path}")
+        return True
+    
+    # 创建此前不存在的文件
+    elif is_likely_file(path) and mkdir:
+        parent_dir = os.path.dirname(path)
+        os.makedirs(parent_dir, exist_ok=True) # 父目录若不存在则递归创建
+        with open(path, 'w', encoding='utf-8') as f:
+            f.close()
+    
+    # 创建此前不存在的路径
+    elif mkdir:
         try:
             dir_path.mkdir(parents=True, exist_ok=True)
             logging.info(f"[Enlight] 目录创建成功：{dir_path}")
@@ -25,11 +46,18 @@ def check_dir(path:str):
             logging.info(f"[Enlight] 权限不足，无法创建目录：{dir_path}")
         except Exception as e:
             logging.error(f"[Enlight] 目录创建失败: {str(e)}")
-    else:
-        logging.info(f"[Enlight] 目录已存在：{dir_path}")
+        
+    return False
+    
 
 
 # 文件处理相关操作
+
+def is_likely_file(path:str)->bool:
+    filename = os.path.basename(path)
+    return '.' in filename and len(filename.split('.')[-1]) > 0
+
+
 def str_to_bool(s: str) -> bool:
     '''
     将输入的字符串转换成布尔类型
@@ -169,6 +197,6 @@ def write_list_to_txt(dataset: List, file_path: str):
 
 
 if __name__ == '__main__':
-    path = 'prompts/filter_prompt_template.txt'
-    res = load_content_from_txt(file_path=path)
+    tmp = './outputs/test.txt'
+    res = check_dir(tmp)
     print(res)

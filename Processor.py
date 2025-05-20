@@ -95,7 +95,7 @@ class AudioProcessor:
                     final_segments.append(segment)
             
             if save:
-                utils.check_path(local_dir)
+                utils.check_dir(local_dir)
                 saved_files = []
                 for idx, seg in enumerate(final_segments):
                     output_path = os.path.join(local_dir,  f"audio_seg_{idx:04d}{self.extension}")
@@ -190,13 +190,13 @@ class VideoProcessor:
             local_dir: 音频文件保存的本地目录
 
         Returns:
-
+            output_audio: 分离得到的音频存储的位置
         '''
         probe = ffmpeg.probe(self.video_file)
         audio_stream = next((s for s in probe['streams'] if s['codec_type'] == 'audio'), None)
 
         audio_file = 'separate_audio.wav'
-        utils.check_path(local_dir)
+        utils.check_dir(local_dir)
         output_audio = os.path.join(local_dir, audio_file)
 
         if audio_stream and audio_stream['codec_name'] in ['pcm_s16le', 'flac']:
@@ -213,6 +213,7 @@ class VideoProcessor:
                     ac=2,               # 立体声
                     loglevel="error")
             .run(overwrite_output=True))
+        return output_audio
 
 
 if __name__=='__main__':
