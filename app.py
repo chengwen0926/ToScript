@@ -58,6 +58,18 @@ def main():
             mode_checkbox_group = gr.Radio(choices=inference_mode_list, label='选择推理模式', value=inference_mode_list[0])
             stream = gr.Radio(choices=stream_mode_list, label='是否流式推理', value=stream_mode_list[0][0])
             instruction_text = gr.Text(label="操作步骤", value=instruct_dict[inference_mode_list[0]])
+        
+        with gr.Accordion(label='模型及其他配置信息', open=False) as configuration:
+            with gr.Row():
+                with gr.Column():
+                    gr.Radio(["Audio2Script", "Image2Script", "Video2Script"], value="Audio2Script", label='模型类型')
+                with gr.Column():
+                    gr.Textbox(placeholder='Input HuggingFace Repository ID to Download', label='🤗 Repo ID', interactive=True)
+                with gr.Column():
+                    gr.Button(value="模型下载&加载部署")
+
+           
+
         with gr.Row() as aud_upload_row:
             aud_upload = gr.Audio(sources="upload", type='filepath', label='选择音频文件，注意采样率不低于16khz')
         with gr.Row(visible=False) as img_upload_row:
