@@ -24,6 +24,41 @@ MODEL = {
     'Video2Script':'whisper-large-v3-turbo'
 }
 
+class Model:
+    '''
+        用于封装'Audio2Script'、'Image2Script'、'Video2Script'三类模型的类
+    '''
+    def __init__(self, repo_id:str):
+        self.model_dir = os.path.join(config.PRETRAINED_MODEL_ROOT_DIR, repo_id)
+        self.language = 'chinese'
+        if not os.path.exists(self.model_dir): # TODO 只存在对应目录还不够，应该添加检查模型文件是否完整的逻辑
+            download_repo(repo_id=repo_id)
+
+    def invoke(self, source:str):
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+        
+        # 加载模型
+        try:
+            # TODO 确定是不是所有音频转文本的模型都可以通过AutoModelForSpeechSeq2Seq来调用
+            model = AutoModelForSpeechSeq2Seq.from_pretrained(
+                self.model_dir, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
+            )
+            model.to(device)
+            processor = AutoProcessor.from_pretrained(self.model_dir)
+            pipe = pipeline(
+                "automatic-speech-recognition",
+                model=model,
+                tokenizer=processor.tokenizer,
+                feature_extractor=processor.feature_extractor,
+                torch_dtype=torch_dtype,
+                device=device,
+            )
+            result = pipe(source, generate_kwargs={"language": self.language})
+            return result
+        except Exception as e:
+            logging.error(f'[Enlight] 模型调用报错 \n {str(e)}')
+
 
 class ToScript:
     '''
@@ -32,6 +67,24 @@ class ToScript:
         处理类
         模型对应
     '''
+
+    def __init__(
+        self, 
+        source:str, 
+        repo_id:str=None,
+        save:bool=True,
+        local_dir:str='./'
+    ):
+        '''
+         Args:
+            source: huggingface中的存储库ID
+            repo_id: 模型下载到本地的路径
+            save: 是否将切分后的音频片段进行保存，如果是的话需要填写参数local_dir
+            local_dir: 音频文件保存的本地目录
+        Returns:
+            
+        '''
+
 
     def __init__(
         self,
